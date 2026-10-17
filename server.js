@@ -2,10 +2,14 @@
 const express = require('express');
 const cors = require('cors');
 const { spawn } = require('child_process');
+const path = require('path');
 
 const app = express();
 app.use(cors());
 app.use(express.json());
+
+const frontendDist = path.join(__dirname, 'frontend-dist');
+app.use(express.static(frontendDist));
 
 function isSafeTarget(value) {
   return typeof value === 'string' && value.length > 0 && value.length <= 200 && /^[a-zA-Z0-9.\-:/]+$/.test(value);
@@ -89,6 +93,11 @@ app.post('/api/scan', (req, res) => {
 });
 
 app.get('/api/health', (_req, res) => res.json({ ok: true }));
+
+app.get('*', (req, res, next) => {
+  if (req.path.startsWith('/api/')) return next();
+  res.sendFile(path.join(frontendDist, 'index.html'));
+});
 
 const port = Number(process.env.PORT) || 5000;
 app.listen(port, '0.0.0.0', () => console.log('Backend listening on ' + port));
