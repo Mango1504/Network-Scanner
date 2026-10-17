@@ -1,10 +1,22 @@
 html,body,#root { height: 100%; }
 body { font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; margin:0; background:#f6f7fb; color:#0f172a; }
 .container { max-width: 1000px; margin: 36px auto; padding: 24px; }
+.hero { display:grid; grid-template-columns:1.45fr .85fr; gap:28px; align-items:start; margin-bottom:22px; }
 .card { background: white; padding: 18px; border-radius: 12px; box-shadow: 0 6px 18px rgba(12,12,12,0.06); }
 .eyebrow { color:#2563eb; font-size:12px; font-weight:800; letter-spacing:.14em; }
 h1 { font-size: clamp(28px, 5vw, 44px); letter-spacing:-.04em; margin-top:8px; }
 .subtitle { color:#64748b; margin:0 0 22px; font-size:16px; }
+.trust-row { display:flex; gap:14px; flex-wrap:wrap; color:#475569; font-size:13px; }
+.offer-card { background:#0f172a; color:white; padding:20px; border-radius:14px; box-shadow:0 12px 28px rgba(15,23,42,.16); }
+.offer-label { color:#93c5fd; font-size:11px; font-weight:800; letter-spacing:.12em; }
+.offer-card strong { display:block; font-size:21px; margin:10px 0 8px; }
+.offer-card p { color:#cbd5e1; line-height:1.5; font-size:14px; }
+.link-button { display:inline-block; background:#60a5fa; color:#07111f; padding:10px 13px; border-radius:8px; text-decoration:none; font-weight:700; font-size:13px; }
+.product-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-bottom:16px; }
+.product-point { background:rgba(255,255,255,.72); border:1px solid #e6e9ef; border-radius:10px; padding:13px; }
+.product-point b, .product-point span { display:block; }
+.product-point b { color:#0f3d73; margin-bottom:4px; }
+.product-point span { color:#64748b; font-size:13px; line-height:1.4; }
 .input, textarea, select { width:100%; padding:10px 12px; border-radius:8px; border:1px solid #e6e9ef; }
 .btn { background:#0f172a; color:white; padding:10px 14px; border-radius:999px; border:none; cursor:pointer; }
 .small { font-size:13px; color:#64748b; }
@@ -23,3 +35,5 @@ h1 { font-size: clamp(28px, 5vw, 44px); letter-spacing:-.04em; margin-top:8px; }
 .change-row.closed b { color:#15803d; }
 .change-row small { color:#64748b; }
 @media (max-width: 640px) { .container { margin:12px auto; padding:14px; } .summary-grid { grid-template-columns:1fr; } .change-row { grid-template-columns:1fr 1fr; } .change-row small { grid-column:1 / -1; } }
+@media (max-width: 760px) { .hero, .product-grid { grid-template-columns:1fr; } }
+.footer-note { color:#64748b; font-size:12px; text-align:center; margin:16px auto 4px; max-width:700px; line-height:1.5; }
