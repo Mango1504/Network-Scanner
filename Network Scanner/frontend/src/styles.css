@@ -30,6 +30,41 @@ h1 { font-size: clamp(38px, 5.4vw, 66px); line-height:1.04; letter-spacing:-.065
 .card-heading h2 { margin:7px 0 5px; font-size:24px; letter-spacing:-.035em; }
 .card-heading p { margin:0; color:#64748b; font-size:13px; }
 .shield-mark { width:42px; height:42px; display:grid; place-items:center; border-radius:12px; background:#eff6ff; color:#2563eb; font-size:22px; }
+.mode-switch { display:flex; gap:6px; background:#e9eff7; padding:5px; border-radius:11px; width:max-content; margin:0 auto 14px; }
+.mode-switch button { border:0; background:transparent; color:#64748b; padding:10px 14px; border-radius:8px; cursor:pointer; font-weight:700; font-size:13px; }
+.mode-switch button.active { background:white; color:#0f172a; box-shadow:0 2px 8px rgba(15,23,42,.08); }
+.truth-intro { display:flex; justify-content:space-between; gap:20px; border-bottom:1px solid #eef2f7; padding-bottom:20px; margin-bottom:20px; }
+.truth-intro h2 { max-width:680px; margin:7px 0 5px; font-size:26px; letter-spacing:-.04em; }
+.truth-intro p { margin:0; color:#64748b; font-size:13px; max-width:680px; line-height:1.5; }
+.truth-orbit { width:48px; height:48px; border-radius:14px; display:grid; place-items:center; color:#7c3aed; background:#f5f3ff; font-size:28px; }
+.truth-form { display:grid; grid-template-columns:1fr auto; gap:12px; align-items:end; }
+.truth-form label { font-size:13px; font-weight:600; color:#334155; }
+.truth-button { height:44px; white-space:nowrap; }
+.truth-safety { display:flex; flex-wrap:wrap; gap:16px; margin:14px 0 4px; color:#64748b; font-size:12px; }
+.truth-error { margin-top:14px; padding:12px; border-radius:9px; background:#fff1f2; color:#be123c; font-size:13px; }
+.truth-result { margin-top:24px; border-top:1px solid #eef2f7; padding-top:22px; }
+.result-header { display:flex; justify-content:space-between; align-items:start; gap:12px; }
+.result-header h3 { margin:7px 0 3px; font-size:22px; letter-spacing:-.035em; }
+.result-header small { color:#64748b; }
+.secondary-button { background:#0f172a; box-shadow:none; }
+.truth-metrics { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin:20px 0; }
+.truth-metrics div { border:1px solid #e6e9ef; border-radius:10px; padding:12px; background:#fbfdff; }
+.truth-metrics strong, .truth-metrics span { display:block; }
+.truth-metrics strong { font-size:22px; color:#0f172a; }
+.truth-metrics span { color:#64748b; font-size:11px; margin-top:3px; }
+.finding-list { display:grid; gap:10px; }
+.finding-card { display:grid; grid-template-columns:72px 1fr; gap:13px; border:1px solid #e6e9ef; border-left:4px solid #f59e0b; border-radius:10px; padding:13px; background:#fffdf8; }
+.finding-card.info { border-left-color:#60a5fa; background:#f8fbff; }
+.finding-badge { color:#b45309; font-size:10px; font-weight:800; letter-spacing:.1em; padding-top:3px; }
+.finding-card.info .finding-badge { color:#2563eb; }
+.finding-card h4 { margin:0 0 6px; font-size:14px; }
+.finding-card p { color:#475569; font-size:12px; line-height:1.45; margin:5px 0; }
+.empty-result { padding:18px; border-radius:10px; background:#f0fdf4; border:1px solid #bbf7d0; color:#166534; }
+.empty-result strong, .empty-result span { display:block; }
+.empty-result span { font-size:12px; margin-top:4px; color:#166534; }
+.evidence-details { margin-top:16px; font-size:12px; color:#475569; }
+.evidence-details p { overflow-wrap:anywhere; line-height:1.45; }
+.truth-disclaimer { color:#64748b; font-size:11px; line-height:1.45; margin-bottom:0; }
 .product-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-bottom:16px; }
 .product-point { background:rgba(255,255,255,.72); border:1px solid #e6e9ef; border-radius:10px; padding:13px; }
 .product-point b, .product-point span { display:block; }
@@ -59,4 +94,5 @@ h1 { font-size: clamp(38px, 5.4vw, 66px); line-height:1.04; letter-spacing:-.065
 .change-row small { color:#64748b; }
 @media (max-width: 640px) { .container { margin:12px auto; padding:14px; } .summary-grid { grid-template-columns:1fr; } .change-row { grid-template-columns:1fr 1fr; } .change-row small { grid-column:1 / -1; } }
 @media (max-width: 760px) { .container { padding:18px 16px 28px; } .topbar { margin-bottom:44px; } .nav-links a { display:none; } .hero, .product-grid { grid-template-columns:1fr; } .hero { gap:28px; } h1 { font-size:46px; } }
+@media (max-width: 640px) { .truth-form, .truth-metrics { grid-template-columns:1fr; } .truth-button { width:100%; } .result-header { display:block; } .secondary-button { margin-top:12px; } .mode-switch { width:100%; } .mode-switch button { flex:1; font-size:12px; padding:9px 6px; } }
 .footer-note { color:#64748b; font-size:12px; text-align:center; margin:16px auto 4px; max-width:700px; line-height:1.5; }

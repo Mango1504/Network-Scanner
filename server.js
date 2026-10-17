@@ -4,6 +4,7 @@ const cors = require('cors');
 const { spawn } = require('child_process');
 const path = require('path');
 const net = require('net');
+const dns = require('dns').promises;
 
 const app = express();
 app.disable('x-powered-by');
@@ -32,6 +33,7 @@ app.use((_req, res, next) => {
 });
 
 const scanAttempts = new Map();
+const truthAttempts = new Map();
 function scanRateLimit(req, res, next) {
   const now = Date.now();
   const windowMs = 10 * 60 * 1000;
@@ -44,6 +46,21 @@ function scanRateLimit(req, res, next) {
   }
   recent.push(now);
   scanAttempts.set(key, recent);
+  next();
+}
+
+function truthRateLimit(req, res, next) {
+  const now = Date.now();
+  const windowMs = 10 * 60 * 1000;
+  const maxAttempts = 12;
+  const key = req.ip || 'unknown';
+  const recent = (truthAttempts.get(key) || []).filter(time => now - time < windowMs);
+  if (recent.length >= maxAttempts) {
+    res.setHeader('Retry-After', '600');
+    return res.status(429).json({ error: 'Too many website checks. Please wait and try again.' });
+  }
+  recent.push(now);
+  truthAttempts.set(key, recent);
   next();
 }
 
@@ -69,6 +86,148 @@ function isBlockedTarget(value) {
   if (ip === 6) return hostname === '::1' || hostname.startsWith('fc') || hostname.startsWith('fd') || hostname.startsWith('fe80');
   return false;
 }
+
+function isSafePublicUrl(value) {
+  if (typeof value !== 'string' || value.length === 0 || value.length > 300) return null;
+  let parsed;
+  try {
+    parsed = new URL(/^https?:\/\//i.test(value) ? value : `https://${value}`);
+  } catch {
+    return null;
+  }
+  if (!['http:', 'https:'].includes(parsed.protocol) || parsed.username || parsed.password || isBlockedTarget(parsed.hostname)) return null;
+  return parsed;
+}
+
+async function assertPublicDns(hostname) {
+  if (net.isIP(hostname)) return;
+  const records = await dns.lookup(hostname, { all: true, verbatim: true });
+  if (!records.length || records.some(record => isBlockedTarget(record.address))) throw new Error('Target is not publicly reachable.');
+}
+
+async function fetchPublicPage(inputUrl) {
+  let current = isSafePublicUrl(inputUrl);
+  if (!current) throw new Error('Enter a valid public http(s) website URL.');
+
+  for (let hop = 0; hop <= 2; hop += 1) {
+    await assertPublicDns(current.hostname);
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 8000);
+    let response;
+    try {
+      response = await fetch(current, {
+        redirect: 'manual',
+        signal: controller.signal,
+        headers: { 'User-Agent': 'ShieldProof-WebCheck/0.1 (+authorized-public-check)' }
+      });
+    } finally {
+      clearTimeout(timer);
+    }
+
+    if (response.status >= 300 && response.status < 400 && response.headers.get('location')) {
+      const next = new URL(response.headers.get('location'), current);
+      if (!isSafePublicUrl(next.toString())) throw new Error('The website redirected to a blocked or invalid destination.');
+      current = next;
+      continue;
+    }
+
+    const contentType = response.headers.get('content-type') || '';
+    if (!contentType.includes('text/html')) throw new Error('The URL did not return an HTML page.');
+    const chunks = [];
+    let total = 0;
+    for await (const chunk of response.body || []) {
+      total += chunk.length;
+      if (total > 1500000) throw new Error('The page is too large for a public check.');
+      chunks.push(chunk);
+    }
+    return { response, url: current, html: Buffer.concat(chunks).toString('utf8') };
+  }
+  throw new Error('Too many redirects.');
+}
+
+function decodeHtml(value) {
+  return value.replace(/&amp;/gi, '&').replace(/&quot;/gi, '"').replace(/&#39;/gi, "'").replace(/&lt;/gi, '<').replace(/&gt;/gi, '>');
+}
+
+function extractHtmlEvidence(html, pageUrl) {
+  const page = new URL(pageUrl);
+  const resources = new Set();
+  const policyLinks = new Set();
+  const resourcePattern = /<(script|iframe|img|link)[^>]+(?:src|href)\s*=\s*["']([^"']+)["']/gi;
+  let match;
+  while ((match = resourcePattern.exec(html))) {
+    try {
+      const resource = new URL(decodeHtml(match[2]), page);
+      if (['http:', 'https:'].includes(resource.protocol)) resources.add(resource.origin);
+    } catch { /* Ignore malformed markup. */ }
+  }
+  const linkPattern = /<a[^>]+href\s*=\s*["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
+  while ((match = linkPattern.exec(html))) {
+    const label = match[0].replace(/<[^>]+>/g, ' ').toLowerCase();
+    if (/privacy|cookie|terms|legal|data protection/.test(label)) {
+      try {
+        const link = new URL(decodeHtml(match[1]), page);
+        if (link.origin === page.origin) policyLinks.add(link.href);
+      } catch { /* Ignore malformed links. */ }
+    }
+  }
+  const text = html.replace(/<script[\s\S]*?<\/script>/gi, ' ').replace(/<style[\s\S]*?<\/style>/gi, ' ').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+  const knownTrackerPattern = /(google-analytics|googletagmanager|doubleclick|connect\.facebook|facebook\.net|hotjar|clarity\.ms|tiktok|linkedin|segment\.com)/i;
+  const trackers = [...resources].filter(origin => knownTrackerPattern.test(origin));
+  const cookies = (html.match(/\bdocument\.cookie\b/gi) || []).length;
+  return { text, resources: [...resources], trackers, policyLinks: [...policyLinks], cookies };
+}
+
+function makeTruthFindings({ page, response, evidence, policyText }) {
+  const findings = [];
+  const selectedHeaders = ['strict-transport-security', 'content-security-policy', 'x-frame-options', 'x-content-type-options', 'referrer-policy', 'permissions-policy'];
+  const headers = Object.fromEntries(selectedHeaders.map(name => [name, response.headers.get(name) || null]));
+  const claimText = `${evidence.text} ${policyText || ''}`;
+  const claims = {
+    essentialOnly: /only (strictly )?(necessary|essential) cookies|essential cookies only/i.test(claimText),
+    noCookies: /does not use cookies|doesn't use cookies|no cookies are used/i.test(claimText),
+    noThirdPartySharing: /do not sell|does not sell|never share.{0,50}(personal|your) data/i.test(claimText),
+    privacyPageFound: evidence.policyLinks.some(link => /privacy|data-protection/i.test(link))
+  };
+
+  if (!claims.privacyPageFound) findings.push({ severity: 'review', category: 'privacy', title: 'Privacy information was not clearly linked', evidence: 'No same-origin link labeled privacy or data protection was found on the checked page.', action: 'Add an easy-to-find privacy notice that matches your actual data practices.' });
+  if (page.protocol === 'https:' && !headers['strict-transport-security']) findings.push({ severity: 'review', category: 'security', title: 'HSTS was not observed', evidence: 'The HTTPS response did not include Strict-Transport-Security.', action: 'Review HSTS configuration after confirming every required subdomain supports HTTPS.' });
+  if (!headers['content-security-policy']) findings.push({ severity: 'info', category: 'security', title: 'Content Security Policy was not observed', evidence: 'The response did not include Content-Security-Policy.', action: 'Consider a carefully tested CSP to reduce script-injection impact.' });
+  if (!headers['x-content-type-options']) findings.push({ severity: 'info', category: 'security', title: 'MIME-sniffing protection was not observed', evidence: 'The response did not include X-Content-Type-Options.', action: 'Consider sending X-Content-Type-Options: nosniff.' });
+  if ((claims.essentialOnly || claims.noCookies) && evidence.trackers.length) findings.push({ severity: 'review', category: 'truth-diff', title: 'Policy language may not match observed third-party resources', evidence: `The page contains language suggesting limited/no cookies, but known tracking resources were observed: ${evidence.trackers.join(', ')}.`, action: 'Confirm consent behavior, tracker purpose, and policy wording with your privacy owner.' });
+  if (claims.noThirdPartySharing && evidence.trackers.length) findings.push({ severity: 'review', category: 'truth-diff', title: 'Review third-party data-sharing language', evidence: `The page contains a no-sharing claim while known third-party tracking resources were observed: ${evidence.trackers.join(', ')}. This is not proof of sharing.`, action: 'Verify what data each provider receives and reconcile the policy with the real implementation.' });
+  if (evidence.policyLinks.length > 3) findings.push({ severity: 'info', category: 'privacy', title: 'Multiple policy links were found', evidence: `${evidence.policyLinks.length} privacy/legal-related links were found.`, action: 'Make the source of truth clear so visitors are not sent to conflicting documents.' });
+  return { headers, claims, findings };
+}
+
+app.post('/api/truth-check', truthRateLimit, async (req, res) => {
+  const { url } = req.body || {};
+  try {
+    const pageResult = await fetchPublicPage(url);
+    const evidence = extractHtmlEvidence(pageResult.html, pageResult.url.href);
+    let policyText = '';
+    const privacyLink = evidence.policyLinks.find(link => /privacy|data-protection/i.test(link));
+    if (privacyLink) {
+      try {
+        const policyResult = await fetchPublicPage(privacyLink);
+        policyText = extractHtmlEvidence(policyResult.html, policyResult.url.href).text.slice(0, 200000);
+      } catch { /* The report remains useful if a policy page is unavailable. */ }
+    }
+    const result = makeTruthFindings({ page: pageResult.url, response: pageResult.response, evidence, policyText });
+    const reviewCount = result.findings.filter(item => item.severity === 'review').length;
+    res.json({
+      type: 'truthdiff',
+      checkedUrl: pageResult.url.href,
+      fetchedAt: new Date().toISOString(),
+      summary: { reviewCount, infoCount: result.findings.length - reviewCount, resourceCount: evidence.resources.length, trackerCount: evidence.trackers.length },
+      observations: { status: pageResult.response.status, contentType: pageResult.response.headers.get('content-type'), resources: evidence.resources, trackers: evidence.trackers, policyLinks: evidence.policyLinks, scriptCookieReferences: evidence.cookies },
+      ...result,
+      disclaimer: 'This is an automated technical observation of a public page, not a legal opinion, certification, or penetration test.'
+    });
+  } catch (error) {
+    res.status(400).json({ error: error.message === 'The page is too large for a public check.' ? error.message : 'The website could not be safely checked. Confirm it is a public HTML page and try again.' });
+  }
+});
 
 function buildNmapArgs({ type = 'quick', ports = '', sv = true, os = false, target }) {
   const args = ['-Pn', '-sT'];
