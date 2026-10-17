@@ -2,8 +2,24 @@ html,body,#root { height: 100%; }
 body { font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; margin:0; background:#f6f7fb; color:#0f172a; }
 .container { max-width: 1000px; margin: 36px auto; padding: 24px; }
 .card { background: white; padding: 18px; border-radius: 12px; box-shadow: 0 6px 18px rgba(12,12,12,0.06); }
+.eyebrow { color:#2563eb; font-size:12px; font-weight:800; letter-spacing:.14em; }
+h1 { font-size: clamp(28px, 5vw, 44px); letter-spacing:-.04em; margin-top:8px; }
+.subtitle { color:#64748b; margin:0 0 22px; font-size:16px; }
 .input, textarea, select { width:100%; padding:10px 12px; border-radius:8px; border:1px solid #e6e9ef; }
 .btn { background:#0f172a; color:white; padding:10px 14px; border-radius:999px; border:none; cursor:pointer; }
 .small { font-size:13px; color:#64748b; }
 .table { width:100%; border-collapse: collapse; margin-top: 12px; }
 .table th, .table td { text-align:left; padding:8px 10px; border-bottom:1px solid #f1f5f9; }
+.summary-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin:20px 0 12px; }
+.summary-card { border:1px solid #e6e9ef; border-radius:10px; padding:14px; background:#fbfdff; }
+.summary-card span, .summary-card small { display:block; color:#64748b; }
+.summary-card strong { display:block; font-size:28px; margin:4px 0; }
+.summary-card .warning { color:#b45309; }
+.summary-card .ok { color:#15803d; }
+.change-panel { border:1px solid #e6e9ef; border-radius:10px; padding:14px; margin:12px 0 18px; }
+.change-panel h3 { margin:0 0 8px; }
+.change-row { display:grid; grid-template-columns:150px 100px 1fr; gap:12px; padding:9px 0; border-top:1px solid #f1f5f9; }
+.change-row.opened b { color:#b45309; }
+.change-row.closed b { color:#15803d; }
+.change-row small { color:#64748b; }
+@media (max-width: 640px) { .container { margin:12px auto; padding:14px; } .summary-grid { grid-template-columns:1fr; } .change-row { grid-template-columns:1fr 1fr; } .change-row small { grid-column:1 / -1; } }
