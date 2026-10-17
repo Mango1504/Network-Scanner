@@ -19,6 +19,7 @@ export default function NetworkScanner() {
   const [completedAt, setCompletedAt] = useState(null);
   const [changes, setChanges] = useState({ opened: [], closed: [] });
   const [previousScanAt, setPreviousScanAt] = useState(null);
+  const [rememberHistory, setRememberHistory] = useState(false);
 
   function historyKey(value) {
     return "netsentinel:history:" + value.trim().toLowerCase();
@@ -29,6 +30,7 @@ export default function NetworkScanner() {
   }
 
   function readHistory(value) {
+    if (!rememberHistory) return [];
     try {
       const saved = JSON.parse(localStorage.getItem(historyKey(value)) || "[]");
       return Array.isArray(saved) ? saved : [];
@@ -38,6 +40,7 @@ export default function NetworkScanner() {
   }
 
   function saveHistory(value, scan) {
+    if (!rememberHistory) return;
     const history = [scan, ...readHistory(value)].slice(0, 10);
     localStorage.setItem(historyKey(value), JSON.stringify(history));
   }
@@ -63,7 +66,7 @@ export default function NetworkScanner() {
       const res = await fetch("/api/scan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ target, type, ports, sv, os })
+        body: JSON.stringify({ target, type, ports, sv, os, authorized })
       });
       const text = await res.text();
       let data;
@@ -129,6 +132,9 @@ export default function NetworkScanner() {
           <input type="checkbox" checked={authorized} onChange={e => setAuthorized(e.target.checked)} required />
           <span>I own this target or have explicit permission to scan it.</span>
         </label>
+        <label className="privacy-choice"><input type="checkbox" checked={rememberHistory} onChange={e => setRememberHistory(e.target.checked)} />
+          <span>Store scan results in this browser to compare future scans <small>(optional, not uploaded)</small></span>
+        </label>
         <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
           <button className="btn" disabled={running}>{running ? "Scanning..." : "Start Scan"}</button>
           <button type="button" className="btn" disabled={!completedAt} onClick={downloadReport}>Download client report</button>
@@ -153,6 +159,7 @@ export default function NetworkScanner() {
         <tbody>{results.length === 0 ? <tr><td colSpan={4}>{status || "No results yet"}</td></tr> : results.map((r, i) => <tr key={i}><td>{r.port}</td><td>{r.proto}</td><td style={{ color: r.state === "open" ? "green" : "#444" }}>{r.state}</td><td>{r.info}</td></tr>)}</tbody>
       </table>
       <details style={{ marginTop: 12 }}><summary>Raw output</summary><pre style={{ whiteSpace: "pre-wrap" }}>{raw.join("\n")}</pre></details>
+      <details className="privacy-details"><summary>Privacy, safety & acceptable use</summary><p>NetSentinel Shield only runs after you confirm that you own the target or have explicit permission. The public service blocks local and private network targets. Scan results are kept in this page only unless you choose the optional browser-history setting; clear your browser data to remove them. Do not enter credentials, secrets, personal data, or targets you are not authorized to assess.</p><p>This tool provides observations, not a penetration test or a guarantee of security. Review the report before sharing it with anyone.</p></details>
     </div>
   );
 }

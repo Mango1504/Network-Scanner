@@ -20,6 +20,9 @@ h1 { font-size: clamp(28px, 5vw, 44px); letter-spacing:-.04em; margin-top:8px; }
 .input, textarea, select { width:100%; padding:10px 12px; border-radius:8px; border:1px solid #e6e9ef; }
 .btn { background:#0f172a; color:white; padding:10px 14px; border-radius:999px; border:none; cursor:pointer; }
 .small { font-size:13px; color:#64748b; }
+.privacy-choice { display:flex; gap:8px; align-items:flex-start; color:#475569; font-size:13px; }
+.privacy-choice small { color:#64748b; }
+.privacy-details { margin-top:16px; border-top:1px solid #e6e9ef; padding-top:12px; color:#475569; font-size:13px; line-height:1.5; }
 .table { width:100%; border-collapse: collapse; margin-top: 12px; }
 .table th, .table td { text-align:left; padding:8px 10px; border-bottom:1px solid #f1f5f9; }
 .summary-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin:20px 0 12px; }
