@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import QRCode from 'qrcode'
+import { isCloudMode, supabase } from './lib/supabase'
 import './styles.css'
 
 const seedPet = {
@@ -19,8 +20,25 @@ function App() {
   const [message, setMessage] = useState('')
   const [sent, setSent] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [cloudUser, setCloudUser] = useState(null)
+  const [authBusy, setAuthBusy] = useState(false)
+  const [authError, setAuthError] = useState('')
 
   useEffect(() => { localStorage.setItem('reunite-pet', JSON.stringify(pet)) }, [pet])
+  useEffect(() => {
+    if (!supabase) return undefined
+    let active = true
+    supabase.auth.getSession().then(async ({ data }) => {
+      if (!active) return
+      setCloudUser(data.session?.user ?? null)
+      if (data.session?.user) await loadCloudPet(data.session.user.id)
+    })
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      setCloudUser(session?.user ?? null)
+      if (session?.user) loadCloudPet(session.user.id)
+    })
+    return () => { active = false; listener.subscription.unsubscribe() }
+  }, [])
   useEffect(() => {
     const onHash = () => setScreen(location.hash.startsWith('#/pet/') ? 'scan' : 'home')
     window.addEventListener('hashchange', onHash); return () => window.removeEventListener('hashchange', onHash)
@@ -29,24 +47,51 @@ function App() {
   const publicUrl = `${location.origin}${location.pathname}#/pet/${pet.id}`
   const go = (next) => { if (next === 'scan') location.hash = `/pet/${pet.id}`; else { history.replaceState(null, '', location.pathname); setScreen(next) } }
 
+  async function loadCloudPet(ownerId) {
+    const { data, error } = await supabase.from('pets').select('*').eq('owner_id', ownerId).order('created_at').limit(1).maybeSingle()
+    if (!error && data) setPet({ ...data, id: data.public_token, _dbId: data.id, photo: '🐕' })
+  }
   const update = (key, value) => { setPet(current => ({ ...current, [key]: value })); setSaved(false) }
-  const saveProfile = () => { localStorage.setItem('reunite-pet', JSON.stringify(pet)); setSaved(true) }
+  const saveProfile = async () => {
+    if (supabase && cloudUser) {
+      const payload = { owner_id: cloudUser.id, name: pet.name, species: pet.species, breed: pet.breed, age: pet.age, note: pet.note, public_photo: pet.publicPhoto, public_note: pet.publicNote, missing: pet.missing }
+      const query = pet._dbId ? supabase.from('pets').update(payload).eq('id', pet._dbId).select().single() : supabase.from('pets').insert(payload).select().single()
+      const { data, error } = await query
+      if (error) { setAuthError(error.message); return }
+      setPet(current => ({ ...current, ...data, id: data.public_token, _dbId: data.id, photo: '🐕' }))
+    }
+    localStorage.setItem('reunite-pet', JSON.stringify(pet)); setSaved(true)
+  }
+  const authenticate = async (mode, email, password) => {
+    setAuthBusy(true); setAuthError('')
+    const result = mode === 'signup' ? await supabase.auth.signUp({ email, password }) : await supabase.auth.signInWithPassword({ email, password })
+    if (result.error) setAuthError(result.error.message)
+    else if (mode === 'signup' && !result.data.session) setAuthError('Check your email to confirm your account, then sign in.')
+    setAuthBusy(false)
+  }
+  const signOut = async () => { await supabase?.auth.signOut(); setCloudUser(null) }
 
   if (screen === 'scan') return <ScanPage pet={pet} publicUrl={publicUrl} message={message} setMessage={setMessage} sent={sent} setSent={setSent} />
+  if (isCloudMode && !cloudUser) return <AuthPage authenticate={authenticate} busy={authBusy} error={authError} />
   if (screen === 'edit') return <EditPage pet={pet} update={update} saveProfile={saveProfile} saved={saved} go={go} />
-  return <Dashboard pet={pet} publicUrl={publicUrl} go={go} />
+  return <Dashboard pet={pet} publicUrl={publicUrl} go={go} cloudUser={cloudUser} signOut={signOut} cloudMode={isCloudMode} />
 }
 
 function Shell({ children, go }) {
   return <div className="app-shell"><header className="topbar"><button className="brand" onClick={() => go('home')}><span className="brand-mark">R</span><span>reunite</span></button><nav><button onClick={() => go('home')}>Dashboard</button><button onClick={() => go('edit')}>Pet profile</button><span className="avatar">RD</span></nav></header>{children}</div>
 }
 
-function Dashboard({ pet, publicUrl, go }) {
-  return <Shell go={go}><main className="dashboard page"><div className="eyebrow">YOUR PET IDENTITY</div><div className="hero-row"><div><h1>A safer way<br /><em>home.</em></h1><p className="lead">A private digital identity for the pet you never want to lose.</p></div><div className="status-pill"><i /> Profile active</div></div>
+function Dashboard({ pet, publicUrl, go, cloudUser, signOut, cloudMode }) {
+  return <Shell go={go}><main className="dashboard page"><div className="eyebrow">YOUR PET IDENTITY</div><div className="hero-row"><div><h1>A safer way<br /><em>home.</em></h1><p className="lead">A private digital identity for the pet you never want to lose.</p></div><div><div className="status-pill"><i /> {cloudMode ? 'Cloud profile active' : 'Demo profile active'}</div>{cloudUser && <button className="signout-btn" onClick={signOut}>Sign out</button>}</div></div>
     <section className="dashboard-grid"><article className="pet-card"><div className="pet-card-top"><div className="pet-avatar">{pet.photo}</div><div><div className="card-label">YOUR PET</div><h2>{pet.name}</h2><p>{pet.breed} · {pet.age}</p></div><button className="icon-btn" onClick={() => go('edit')} aria-label="Edit profile">↗</button></div><div className="privacy-row"><span><i className="lock">⌁</i> Private contact enabled</span><span className="online-dot">●</span></div></article>
     <QRCard publicUrl={publicUrl} />
     </section><section className="lower-grid"><div className="section-heading"><div><div className="eyebrow">A SIMPLE PROMISE</div><h3>Ready when it matters.</h3></div><button className="text-btn" onClick={() => go('edit')}>Manage profile <span>→</span></button></div><div className="steps"><Step n="01" title="Create" text="Keep the essentials in one trusted place."/><Step n="02" title="Attach" text="Print the QR or add it to any tag."/><Step n="03" title="Reconnect" text="A finder can reach you without seeing your details."/></div></section>
     <div className="demo-note"><span>DEMO MODE</span> This prototype stores data only in this browser. Production accounts, encrypted storage and real messaging still need a backend.</div></main></Shell>
+}
+
+function AuthPage({ authenticate, busy, error }) {
+  const [mode, setMode] = useState('signin'); const [email, setEmail] = useState(''); const [password, setPassword] = useState('')
+  return <div className="auth-page"><div className="scan-brand"><span className="brand-mark">R</span> reunite</div><main className="auth-card"><div className="eyebrow">PRIVATE PET IDENTITY</div><h1>{mode === 'signin' ? 'Welcome back.' : 'Make a safe home.'}</h1><p>Sign in to manage your pet profile and keep it available wherever you are.</p><form onSubmit={e => { e.preventDefault(); authenticate(mode, email, password) }}><label>Email<input type="email" value={email} onChange={e => setEmail(e.target.value)} required /></label><label>Password<input type="password" minLength="6" value={password} onChange={e => setPassword(e.target.value)} required /></label>{error && <div className="auth-error">{error}</div>}<button className="primary-btn wide" disabled={busy}>{busy ? 'Please wait…' : mode === 'signin' ? 'Sign in' : 'Create account'} <span>→</span></button></form><button className="auth-toggle" onClick={() => { setMode(mode === 'signin' ? 'signup' : 'signin'); }}> {mode === 'signin' ? 'Create a new account' : 'Already have an account? Sign in'} </button><small>Your pet profile is stored in your Reunite account.</small></main></div>
 }
 
 function QRCard({ publicUrl }) {
