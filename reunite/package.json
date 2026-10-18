@@ -13,6 +13,7 @@
     "qrcode": "latest",
     "react": "latest",
     "react-dom": "latest",
+    "@supabase/supabase-js": "latest",
     "vite": "latest"
   },
   "devDependencies": {}
